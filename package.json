@@ -1,0 +1,28 @@
+{
+  "name": "ugc-flow",
+  "private": true,
+  "version": "1.3.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "test": "node --test --test-concurrency=1 tests/*.test.mjs",
+    "check": "npm run test && npm run build",
+    "start": "node server/index.mjs",
+    "catalog": "node scripts/export-template-catalog.mjs",
+    "build:mac": "zsh scripts/build-macos.sh",
+    "verify:mac": "zsh scripts/verify-macos-package.sh",
+    "deploy:codex": "node scripts/deploy-skills.mjs codex",
+    "deploy:claude": "node scripts/deploy-skills.mjs claude"
+  },
+  "dependencies": {
+    "express": "latest"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "latest",
+    "lucide-react": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "vite": "latest"
+  }
+}

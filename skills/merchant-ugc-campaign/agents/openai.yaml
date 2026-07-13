@@ -1,0 +1,4 @@
+interface:
+  display_name: "商家 UGC 带货活动"
+  short_description: "覆盖十二大品类的商家带货策略、复刻脚本与成片提示词生成"
+  default_prompt: "使用 $merchant-ugc-campaign 为我的商品匹配品类模板并生成可执行的 15 秒 UGC 带货脚本。"

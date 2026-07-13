@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["product", "strategy", "imagePrompt", "imageUrl", "videoPrompt"],
+  "properties": {
+    "product": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["summary", "audience", "claims", "risks"],
+      "properties": {
+        "summary": { "type": "string", "maxLength": 800 },
+        "audience": { "type": "string", "maxLength": 400 },
+        "claims": { "type": "array", "maxItems": 6, "items": { "type": "string", "maxLength": 240 } },
+        "risks": { "type": "array", "maxItems": 6, "items": { "type": "string", "maxLength": 240 } }
+      }
+    },
+    "strategy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["format", "mechanism", "hook", "shots", "metrics"],
+      "properties": {
+        "format": { "type": "string", "maxLength": 160 },
+        "mechanism": { "type": "string", "maxLength": 500 },
+        "hook": { "type": "string", "maxLength": 240 },
+        "shots": { "type": "array", "minItems": 8, "maxItems": 8, "items": { "type": "string", "maxLength": 320 } },
+        "metrics": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "string", "maxLength": 80 } }
+      }
+    },
+    "imagePrompt": { "type": "string", "maxLength": 5000 },
+    "imageUrl": { "type": "string", "maxLength": 2000 },
+    "videoPrompt": { "type": "string", "maxLength": 12000 }
+  }
+}
