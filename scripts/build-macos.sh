@@ -64,7 +64,7 @@ fi
 
 ZIP="$RELEASE/UGC-Flow-Mac-$VERSION-$ARCH.zip"
 DMG="$RELEASE/UGC-Flow-Mac-$VERSION-$ARCH.dmg"
-DELIVERY="$RELEASE/UGC-Flow-Mac-$VERSION-完整资料包.zip"
+DELIVERY="$RELEASE/UGC-Flow-Mac-$VERSION-complete.zip"
 /bin/rm -f "$ZIP" "$DMG" "$DELIVERY"
 /usr/bin/ditto -c -k --keepParent "$APP" "$ZIP"
 DMG_DIR="$BUILD/dmg"
@@ -79,7 +79,10 @@ DELIVERY_DIR="$BUILD/UGC Flow Mac $VERSION 完整资料包"
 /bin/cp "$DMG" "$DELIVERY_DIR/UGC-Flow-Mac-$VERSION-$ARCH.dmg"
 /bin/cp -R "$DOCS_STAGE" "$DELIVERY_DIR/使用说明与API文档"
 /usr/bin/ditto -c -k --keepParent "$DELIVERY_DIR" "$DELIVERY"
-/usr/bin/shasum -a 256 "$ZIP" "$DMG" "$DELIVERY" > "$RELEASE/SHA256.txt"
+(
+  cd "$RELEASE"
+  /usr/bin/shasum -a 256 "${ZIP:t}" "${DMG:t}" "${DELIVERY:t}" > SHA256.txt
+)
 LOCAL_BUILD="$ROOT/build/macos"
 /bin/rm -rf "$LOCAL_BUILD"
 /bin/mkdir -p "$LOCAL_BUILD"
