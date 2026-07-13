@@ -2,7 +2,7 @@ import crypto from 'node:crypto'
 import { characterPrompt, videoPrompt } from './prompts.mjs'
 import { buildDemoProduct, buildDemoStrategy, delay, DEMO_ASSET } from './demo.mjs'
 import { extractAssetUrl, extractJobId, extractJobStatus, extractProgress, requestCompatible, scopedConfig, splitPool } from './adapters.mjs'
-import { configuredVideoParams, mediaParamsFor, parseParamsJson } from './media-profiles.mjs'
+import { configuredVideoParams, jsonVideoParams, mediaParamsFor, parseParamsJson } from './media-profiles.mjs'
 import { runAgentPlan } from './agent-runner.mjs'
 import { compactMediaReference, compactPrompt } from './media-input.mjs'
 import { resolveMediaConfig } from './provider-discovery.mjs'
@@ -16,6 +16,16 @@ const publicJob = (job) => { const { config: _config, abortController: _controll
 const update = (job, patch) => Object.assign(job, patch, { updatedAt: new Date().toISOString() })
 const log = (job, stage, message) => { job.logs.push({ stage, message, at: new Date().toISOString() }); update(job, { stage, message }) }
 function assertActive(job) { if (job.abortController.signal.aborted || job.status === 'cancelled') throw new DOMException('任务已取消', 'AbortError') }
+
+export function videoEndpointsFor(config, { relayGrok = false } = {}) {
+  const configured = splitPool(config.videoPath)
+  if (relayGrok) return ['/videos/generations', '/v1/videos/generations', ...configured.filter((path) => /\/videos\/generations\/?$/i.test(path))].join('\n')
+  if (config.videoProtocol === 'media') return (configured.filter((path) => path.includes('/media/generate')).length ? configured.filter((path) => path.includes('/media/generate')) : ['/media/generate', '/v1/media/generate']).join('\n')
+  if (config.videoProtocol === 'openai') return ['/videos', '/v1/videos', ...configured.filter((path) => /\/videos\/?$/i.test(path))].join('\n')
+  if (config.videoProtocol === 'json') return ['/videos/generations', '/v1/videos/generations', ...configured.filter((path) => /\/videos\/generations\/?$/i.test(path))].join('\n')
+  const standard = configured.filter((path) => !path.includes('/media/generate'))
+  return (standard.length ? ['/videos', '/videos/generations', '/v1/videos', '/v1/videos/generations', ...standard] : configured.length ? configured : ['/videos', '/videos/generations', '/v1/videos', '/v1/videos/generations']).join('\n')
+}
 
 async function imageFilePart(reference, index, signal) {
   if (String(reference).startsWith('data:')) {
@@ -150,27 +160,32 @@ async function liveWorkflow(job) {
     const matchingModels = splitPool(videoModels).filter((model) => profile.match.test(model))
     if (matchingModels.length) videoModels = matchingModels.join(',')
   }
-  const relayGrokMedia = splitPool(videoModels).some((model) => /^grok-video-1\.5-preview$/i.test(model))
-  const mediaProtocol = relayGrokMedia || config.videoProtocol === 'media' || splitPool(config.videoPath).some((path) => path.includes('/media/generate'))
+  let relayGrokMedia = splitPool(videoModels).some((model) => /^grok-video-1\.5-preview$/i.test(model))
+  let mediaProtocol = config.videoProtocol === 'media' || splitPool(videoEndpointsFor(config, { relayGrok: relayGrokMedia })).every((path) => path.includes('/media/generate'))
   const localReference = String(videoReference || '').startsWith('data:')
-  if (mediaProtocol && (referencePolicy === 'text-only' || localReference)) {
-    const selected = splitPool(videoModels)[0]
+  const initiallySelectedModel = splitPool(videoModels)[0]
+  const knownImageOnlyModel = getVideoModelProfile(initiallySelectedModel).requiresImage
+  if ((mediaProtocol || knownImageOnlyModel) && (referencePolicy === 'text-only' || localReference || !videoReference)) {
+    const selected = initiallySelectedModel
     const capability = selected ? await modelRequiresPublicReference(videoConfig, selected, signal) : { required: false }
-    if (referencePolicy === 'require-public' && localReference) throw new Error('当前模型要求公网参考图。请填写 COS/CDN 图片地址，或把“无公网参考图时”改为自动切换文生视频。')
+    if (referencePolicy === 'require-public' && (localReference || !videoReference)) throw new Error('当前模型要求公网参考图。请上传 1 张图片并配置自动上传，或直接填写 COS/CDN 图片 URL。')
     if (referencePolicy === 'text-only' || capability.required) {
       const fallback = await discoverTextVideoModel(videoConfig, videoModels, signal)
-      if (!fallback) throw new Error('当前供应商没有发现可用的文生视频模型。请在视频模型池加入文生视频模型，或提供公网参考图 URL。')
+      if (!fallback) throw new Error('grok-video-1.5-preview 仅支持图生视频。请上传 1 张参考图或填写公网图片 URL；如需无图生成，请在视频模型池加入文生视频模型。')
       videoModels = fallback.model; videoReference = null
       log(job, 5, `本地图片无法直传，已自动切换文生视频模型 · ${fallback.model}`)
       update(job, { result: { ...job.result, providerTrace: { ...job.result.providerTrace, referenceFallback: { policy: referencePolicy, model: fallback.model, source: fallback.source } } } })
+      relayGrokMedia = splitPool(videoModels).some((model) => /^grok-video-1\.5-preview$/i.test(model))
+      mediaProtocol = config.videoProtocol === 'media' || splitPool(videoEndpointsFor(config, { relayGrok: relayGrokMedia })).every((path) => path.includes('/media/generate'))
     }
   }
   log(job, 5, '视频任务已提交，正在等待成片…')
   const videoCall = await requestCompatible(videoConfig, {
-    endpoints: relayGrokMedia ? ['/videos/generations', '/v1/videos/generations', '/media/generate', '/v1/media/generate', ...splitPool(config.videoPath)].join('\n') : mediaProtocol ? config.videoPath : ['/videos/generations', '/v1/videos/generations', ...splitPool(config.videoPath || '/videos\n/v1/videos')].join('\n'),
+    endpoints: videoEndpointsFor(config, { relayGrok: relayGrokMedia }),
     models: videoModels,
+    random: () => 0.999999,
     makeOptions: async (model, endpoint) => {
-      const selectedParams = configuredVideoParams(config, model)
+      const selectedParams = endpoint.includes('/videos/generations') ? jsonVideoParams(configuredVideoParams(config, model)) : configuredVideoParams(config, model)
       if (endpoint.includes('predictions')) return { method: 'POST', signal, timeoutMs: 180_000, headers: { Prefer: 'wait=60' }, body: JSON.stringify({ input: { prompt, image: videoReference, ...selectedParams } }) }
       if (config.videoProtocol === 'media' || endpoint.includes('/media/generate')) {
         const body = { model, prompt, params: mediaParamsFor({ kind: 'video', model, references: [videoReference].filter(Boolean), overrides: { ...selectedParams, ...parseParamsJson(config.videoParamsJson) } }) }
@@ -178,7 +193,7 @@ async function liveWorkflow(job) {
         return { method: 'POST', signal, timeoutMs: 180_000, body: JSON.stringify(body) }
       }
       if (endpoint.includes('/videos/generations')) {
-        const supportsAudio = /(?:vidu.*q3|wan(?:2|x)?[.-]?\d|seedance|doubao.*seedance|kling.*omni|veo3.*official)/i.test(model)
+        const supportsAudio = /(?:vidu.*q3|wan(?:2|x)?[.-]?\d|seedance|doubao.*seedance|kling.*omni|veo3)/i.test(model)
         const references = videoReference ? (/^grok-imagine-video/i.test(model)
           ? { image: { url: videoReference } }
           : /^grok-video-1\.5-preview$/i.test(model)
@@ -197,6 +212,7 @@ async function liveWorkflow(job) {
         const form = new FormData(); form.append('model', model); form.append('prompt', prompt); form.append('size', selectedParams.size || selectedParams.resolution || '720x1280'); form.append('seconds', selectedParams.seconds || selectedParams.duration || '12')
         const reference = videoReference
         if (reference?.startsWith('data:')) { const [meta, encoded] = reference.split(',', 2); const mime = meta.match(/^data:([^;]+)/)?.[1] || 'image/png'; form.append('input_reference', new Blob([Buffer.from(encoded, 'base64')], { type: mime }), 'reference.png') }
+        else if (/^https?:\/\//i.test(reference || '')) { const file = await imageFilePart(reference, 0, signal); form.append('input_reference', file.blob, file.name) }
         return { method: 'POST', signal, timeoutMs: 180_000, headers: { 'content-type': undefined }, body: form }
       }
       const body = { model, prompt, ...selectedParams, input_reference: videoReference }

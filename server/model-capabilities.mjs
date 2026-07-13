@@ -1,4 +1,5 @@
 import { extractModelIds, requestCompatible, splitPool } from './adapters.mjs'
+import { getVideoModelProfile } from '../shared/video-models.mjs'
 
 const definitionCache = new Map()
 const DEFINITION_TTL = 30 * 60 * 1000
@@ -38,6 +39,7 @@ export async function discoverTextVideoModel(config, preferredModels, signal) {
   } catch {}
   const candidates = [...new Set([...splitPool(preferredModels), ...catalog.filter(isTextVideoName)])].slice(0, 16)
   for (const model of candidates) {
+    if (getVideoModelProfile(model).requiresImage) continue
     if (!isTextVideoName(model) && !catalog.includes(model)) continue
     try {
       const definition = await fetchModelDefinition(config, model, signal)
@@ -49,6 +51,8 @@ export async function discoverTextVideoModel(config, preferredModels, signal) {
 }
 
 export async function modelRequiresPublicReference(config, model, signal) {
+  const profile = getVideoModelProfile(model)
+  if (profile.requiresImage) return { required: true, params: ['images'], definition: null, source: 'known-profile' }
   try {
     const definition = await fetchModelDefinition(config, model, signal)
     return { required: requiredUploadParams(definition).length > 0, params: requiredUploadParams(definition), definition }

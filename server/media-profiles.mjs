@@ -41,7 +41,19 @@ export function parseParamsJson(value) {
 export function configuredVideoParams(config, model) {
   const configuredModel = String(config.videoModels || config.videoModel || '').split(/[\n,，]/).map((item) => item.trim()).find(Boolean)
   const inferredProfile = getVideoModelProfile(model)
-  const profileOverride = configuredModel === model && (config.videoProfile === 'custom' || config.videoProfile === inferredProfile.id) ? config.videoProfile : ''
+  const profileOverride = configuredModel === model && (config.videoProfile === inferredProfile.id || config.videoProfile === 'custom' && inferredProfile.id === 'custom') ? config.videoProfile : ''
   return videoSelectionParams(model, { duration: config.videoDuration, resolution: config.videoResolution, aspectRatio: config.videoAspectRatio, mode: config.videoMode }, profileOverride)
+}
+
+function integerValue(value) {
+  const match = String(value ?? '').trim().match(/^(\d+)(?:\.0+)?(?:s|秒)?$/i)
+  return match ? Number(match[1]) : value
+}
+
+export function jsonVideoParams(params = {}) {
+  const next = { ...params }
+  if ('duration' in next) next.duration = integerValue(next.duration)
+  if ('seconds' in next) next.seconds = integerValue(next.seconds)
+  return next
 }
 import { getVideoModelProfile, videoSelectionParams } from '../shared/video-models.mjs'

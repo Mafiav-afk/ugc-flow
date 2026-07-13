@@ -69,6 +69,12 @@ test('summarizes model-not-found errors instead of exposing every attempted rout
   await assert.rejects(() => requestCompatible({ baseUrl: `http://127.0.0.1:${server.address().port}` }, { endpoints: '/responses\n/chat/completions', models: 'gpt-x', makeOptions: async () => ({ method: 'POST', body: '{}' }) }), /模型不可用：gpt-x/)
 })
 
+test('summarizes image-to-video reference errors instead of exposing every attempted route', async (t) => {
+  const server = http.createServer((_req, res) => { res.writeHead(500, { 'content-type': 'application/json' }); res.end('{"error":{"message":"grok-video-1.5-preview only supports image-to-video; one reference image is required"}}') }).listen(0, '127.0.0.1')
+  await new Promise((resolve) => server.once('listening', resolve)); t.after(() => server.close())
+  await assert.rejects(() => requestCompatible({ baseUrl: `http://127.0.0.1:${server.address().port}` }, { endpoints: '/videos/generations\n/v1/videos/generations', models: 'grok-video-1.5-preview', makeOptions: async () => ({ method: 'POST', body: '{}' }) }), /仅支持图生视频.*参考图/)
+})
+
 test('treats HTTP 200 responses with business code 400 as API failures', async (t) => {
   const server = http.createServer((_req, res) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end('{"code":400,"msg":"Invalid request parameters","data":{"详情":"缺少必要参数 model"}}') }).listen(0, '127.0.0.1')
   await new Promise((resolve) => server.once('listening', resolve)); t.after(() => server.close())

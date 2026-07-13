@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { configuredVideoParams, mediaParamsFor, parseParamsJson } from '../server/media-profiles.mjs'
+import { configuredVideoParams, jsonVideoParams, mediaParamsFor, parseParamsJson } from '../server/media-profiles.mjs'
 import { VIDEO_MODEL_PROFILES, getVideoModelProfile, normalizeVideoSelection, videoSelectionParams } from '../shared/video-models.mjs'
 
 test('builds model-family media params while allowing JSON overrides', () => {
@@ -14,8 +14,13 @@ test('builds model-family media params while allowing JSON overrides', () => {
   assert.throws(() => parseParamsJson('[]'), /JSON 对象/)
 })
 
+test('normalizes known Veo constraints and integer JSON duration fields', () => {
+  assert.deepEqual(configuredVideoParams({ videoModels: 'veo3.1-quality', videoProfile: 'custom', videoDuration: '15', videoResolution: '720p', videoAspectRatio: '9:16' }, 'veo3.1-quality'), { duration: '8', seconds: '8', size: '720x1280', aspect_ratio: '9:16', orientation: 'portrait' })
+  assert.deepEqual(jsonVideoParams({ duration: '6s', seconds: '8', resolution: '720p' }), { duration: 6, seconds: 8, resolution: '720p' })
+})
+
 test('video model options follow documented duration, resolution, ratio, and version constraints', () => {
-  assert.equal(VIDEO_MODEL_PROFILES.length, 10)
+  assert.equal(VIDEO_MODEL_PROFILES.length, 14)
   const grok3 = getVideoModelProfile('grok-video-3')
   assert.deepEqual(grok3.durations, ['10', '15'])
   assert.deepEqual(grok3.resolutions, ['720P', '1080P'])

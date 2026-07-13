@@ -4,6 +4,8 @@ import { Bell, Box, CircleHelp, FileText, LayoutGrid, Link, Monitor, Square, Use
 import { INITIAL_BRIEF, INITIAL_CONFIG } from './constants'
 import { api, wait } from './lib/client'
 import { serializableBrief, useStoredState } from './lib/storage'
+import { userErrorMessage } from './lib/user-error'
+import { getVideoModelProfile } from '../shared/video-models.mjs'
 import { Sidebar } from './components/Sidebar'
 import { ProductForm } from './components/ProductForm'
 import { Workflow } from './components/Workflow'
@@ -39,7 +41,7 @@ function App() {
     api.health().then(() => setServiceReady(true)).catch(() => setServiceReady(false))
     api.agents().then(setAgents).catch(() => setAgents({}))
   }, [])
-  function notify(message, tone = 'success') { setNotice({ message, tone }) }
+  function notify(message, tone = 'success') { setNotice({ message: tone === 'error' ? userErrorMessage(message) : message, tone }) }
   function navigate(view) {
     if (view === 'api') { setShowApi(true); setActiveView('workspace'); return }
     if (view === 'deploy') { setActiveView('workspace'); requestAnimationFrame(() => document.getElementById('deploy-section')?.scrollIntoView({ behavior: 'smooth', block: 'end' })); return }
@@ -64,6 +66,10 @@ function App() {
   async function run() {
     if (!brief.name.trim() || !brief.sellingPoints.trim()) { notify('请先填写产品名称和核心卖点', 'error'); return }
     if (!ready) { setShowApi(true); return }
+    const videoModel = String(config.videoModels || config.videoModel || '').split(/[\n,，]/).map((item) => item.trim()).find(Boolean)
+    const videoProfile = getVideoModelProfile(videoModel)
+    if (!config.demoMode && videoProfile.requiresImage && config.videoReferencePolicy === 'text-only') { notify(`${videoModel} 仅支持图生视频，不能使用“始终文生视频”。请改为强制参考图或选择文生视频模型。`, 'error'); setShowApi(true); return }
+    if (!config.demoMode && videoProfile.requiresImage && config.imageSource === 'reference' && !(brief.assets || []).length && !config.videoReferenceUrl) { notify(`${videoModel} 需要 1 张参考图。请先上传图片或填写公网图片 URL。`, 'error'); return }
     const token = ++runToken.current
     setJob({ status: 'queued', stage: 0, message: '正在创建任务', logs: [] })
     try { const created = await api.createJob(brief, config); currentJobId.current = created.id; setJob(created); await pollJob(created.id, token) }
@@ -110,4 +116,7 @@ function App() {
   </div>
 }
 
-createRoot(document.getElementById('root')).render(<App/>)
+const rootElement = document.getElementById('root')
+const root = rootElement.__ugcFlowRoot || createRoot(rootElement)
+rootElement.__ugcFlowRoot = root
+root.render(<App/>)

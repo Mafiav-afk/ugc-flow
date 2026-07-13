@@ -121,8 +121,8 @@ npm run verify:mac
 
 输出：
 
-- `release/UGC-Flow-Mac-1.3.0-arm64.dmg`
-- `release/UGC-Flow-Mac-1.3.0-arm64.zip`
+- `release/UGC-Flow-Mac-1.3.1-arm64.dmg`
+- `release/UGC-Flow-Mac-1.3.1-arm64.zip`
 - `release/SHA256.txt`
 
 DMG 内的“UGC Flow 安装器.app”会：

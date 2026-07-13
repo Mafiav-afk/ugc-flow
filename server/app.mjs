@@ -10,21 +10,25 @@ import { resolveMediaConfig } from './provider-discovery.mjs'
 import { resolveProductLink } from './product-link.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const appVersion = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8')).version
+const installerName = `UGC-Flow-Mac-${appVersion}-arm64.dmg`
+const installerRoute = `/downloads/${installerName}`
 function validateBrief(brief = {}) { if (!brief.name?.trim()) return '请填写产品名称'; if (!brief.sellingPoints?.trim()) return '请填写核心卖点'; if ((brief.assets || []).some((asset) => asset.size > 10 * 1024 * 1024)) return '单个参考素材不能超过 10 MB'; return null }
 
 export function createApp({ apiOnly = false } = {}) {
   const app = express()
   app.use(express.json({ limit: '32mb' }))
-  app.get('/api/health', (_req, res) => res.json({ ok: true, service: 'ugc-flow', version: '1.3.0' }))
-  app.get('/downloads/UGC-Flow-Mac-1.3.0-arm64.dmg', async (_req, res) => {
-    const installer = path.join(root, 'release', 'UGC-Flow-Mac-1.3.0-arm64.dmg')
+  app.get('/api/health', (_req, res) => res.json({ ok: true, service: 'ugc-flow', version: appVersion }))
+  app.get(['/downloads/UGC-Flow-Mac-latest-arm64.dmg', installerRoute], async (_req, res) => {
+    const installer = path.join(root, 'release', installerName)
     try {
       await fs.access(installer)
-      return res.download(installer, 'UGC-Flow-Mac-1.3.0-arm64.dmg')
+      return res.download(installer, installerName)
     } catch {
       return res.status(404).json({ error: '当前运行包未包含桌面安装器，请在源码目录执行 npm run build:mac' })
     }
   })
+  app.get('/downloads/UGC-Flow-Mac-1.3.0-arm64.dmg', (_req, res) => res.redirect(302, installerRoute))
   app.get('/api/presets', (_req, res) => res.json(PROVIDER_PRESETS))
   app.post('/api/product-link', async (req, res) => { try { return res.json(await resolveProductLink(req.body?.url)) } catch (error) { return res.status(400).json({ error: error.message }) } })
   app.get('/api/agents/status', async (_req, res) => {

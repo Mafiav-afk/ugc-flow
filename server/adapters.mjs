@@ -149,8 +149,12 @@ export async function requestCompatible(config, { endpoints, models, makeOptions
     const failedModels = unique(modelFailures.map((item) => item.model)).join('、')
     throw new Error(`模型不可用：${failedModels}。接口已连接，但该供应商没有启用这些模型；请在 API 接入中读取可用模型或填写供应商实际模型 ID。`)
   }
+  const missingImageFailures = attempts.filter((item) => /only supports image-to-video|one reference image is required|reference image.+required|image.+is required/i.test(item.message))
+  if (missingImageFailures.length) throw new Error('当前视频模型仅支持图生视频，但上游没有识别到参考图。请上传 1 张图片或填写公网图片 URL，并使用 /videos/generations 接口。')
+  const parameterFailure = attempts.find((item) => item.status !== 404 && /seconds?.*(?:supports|integer|invalid)|duration.*(?:integer|invalid|unmarshal|not supported)|resolution.*(?:not supported|available)|ratio.*(?:not valid|invalid)|请求参数不支持|pricing rule/i.test(item.message))
+  if (parameterFailure) throw new Error(`视频模型参数不兼容：${parameterFailure.model} · ${parameterFailure.message}。请在 API 接入中选择该模型支持的时长、分辨率和画面比例。`)
   if (attempts.length && attempts.every((item) => item.status === 404)) throw new Error('接口路径不可用：所有候选端点均返回 404。当前地址可能是文档/前台网站而不是 API Base URL；请点击“智能识别并测试”，或填写供应商文档标注的 API 根地址。')
-  const detail = attempts.map((item) => `${item.model} @ ${item.endpoint}: ${item.status || '网络'} ${item.message}`).join('；')
+  const detail = attempts.slice(0, 6).map((item) => `${item.model} @ ${item.endpoint}: ${item.status || '网络'} ${item.message}`).join('；')
   throw new Error(`所有候选模型或端点均失败：${detail || lastError?.message || '未知错误'}`)
 }
 

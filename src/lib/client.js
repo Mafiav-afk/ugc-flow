@@ -62,7 +62,7 @@ export const api = STATIC_DEMO ? staticApi : {
 }
 
 export const isStaticDemo = STATIC_DEMO
-export const desktopDownloadUrl = STATIC_DEMO ? 'https://github.com/Mafiav-afk/ugc-flow/releases/latest/download/UGC-Flow-Mac-1.3.0-arm64.dmg' : '/downloads/UGC-Flow-Mac-1.3.0-arm64.dmg'
+export const desktopDownloadUrl = STATIC_DEMO ? 'https://github.com/Mafiav-afk/ugc-flow/releases/latest/download/UGC-Flow-Mac-1.3.1-arm64.dmg' : '/downloads/UGC-Flow-Mac-latest-arm64.dmg'
 export const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 export function downloadJson(filename, data) {
   const href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }))

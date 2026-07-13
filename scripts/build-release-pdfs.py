@@ -98,7 +98,7 @@ def build(source):
         Spacer(1, 4 * mm),
         Paragraph("UGC FLOW OPERATOR GUIDE", st["strap"]),
         Paragraph(esc(title), st["title"]),
-        Paragraph("Mac 版 1.3.0 · Codex / Claude 智能体 + 图片与视频 API", st["sub"]),
+        Paragraph("Mac 版 1.3.1 · Codex / Claude 智能体 + 图片与视频 API", st["sub"]),
     ]
     code = []
     in_code = False

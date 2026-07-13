@@ -4,4 +4,4 @@ build/
 release/
 .DS_Store
 *.log
-
+artifacts/

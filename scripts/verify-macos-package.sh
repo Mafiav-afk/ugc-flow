@@ -2,8 +2,9 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-ZIP="$ROOT/release/UGC-Flow-Mac-1.3.0-arm64.zip"
-DMG="$ROOT/release/UGC-Flow-Mac-1.3.0-arm64.dmg"
+VERSION="$(cd "$ROOT" && node -p "require('./package.json').version")"
+ZIP="$ROOT/release/UGC-Flow-Mac-$VERSION-arm64.zip"
+DMG="$ROOT/release/UGC-Flow-Mac-$VERSION-arm64.dmg"
 TMP="$(/usr/bin/mktemp -d /tmp/ugc-flow-mac-verify.XXXXXX)"
 SERVER_PID=""
 MOUNT_POINT=""

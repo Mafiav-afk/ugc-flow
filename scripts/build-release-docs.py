@@ -106,7 +106,7 @@ def configure(doc, title):
     set_font(r, 23, bold=True, color=DARK)
     p = doc.add_paragraph()
     p.paragraph_format.space_after = Pt(18)
-    r = p.add_run("Mac 版 1.3.0  ·  Codex / Claude 智能体 + 图片与视频 API")
+    r = p.add_run("Mac 版 1.3.1  ·  Codex / Claude 智能体 + 图片与视频 API")
     set_font(r, 10.5, color=MUTED)
     rule = doc.add_paragraph()
     rule.paragraph_format.space_after = Pt(10)

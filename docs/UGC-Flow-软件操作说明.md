@@ -1,11 +1,12 @@
 # UGC Flow 软件操作说明
 
-版本：1.3.0（Mac Apple Silicon）  
+版本：1.3.1（Mac Apple Silicon）
+
 适用对象：商家、短视频运营、UGC 创作者
 
 ## 1. 安装与启动
 
-1. 双击 `UGC-Flow-Mac-1.3.0-arm64.dmg`。
+1. 双击 `UGC-Flow-Mac-1.3.1-arm64.dmg`。
 2. 打开“UGC Flow 安装器”，选择部署到 Codex、Claude Code 或两者。
 3. 安装完成后访问 `http://127.0.0.1:18787/`。
 4. 首次启动进入“智能体与 API”，确认 Codex/Claude 已连接。
@@ -62,4 +63,3 @@
 - 不要在截图、群聊或文档中公开 API Key。
 - 商品功效、医疗、美白、抗衰等表述必须有真实材料支撑。
 - 视频 URL 可能有有效期，生成成功后请及时下载归档。
-

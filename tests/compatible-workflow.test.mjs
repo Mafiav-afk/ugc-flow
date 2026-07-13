@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import http from 'node:http'
-import { clearWorkflowJobs, createWorkflowJob, getWorkflowJob } from '../server/workflow.mjs'
+import { clearWorkflowJobs, createWorkflowJob, getWorkflowJob, videoEndpointsFor } from '../server/workflow.mjs'
 
 const testAgentPlan = { product: { summary: '测试商品', audience: '目标用户', claims: ['真实卖点'], risks: [] }, strategy: { format: '产品即演示', mechanism: '展示证明', hook: '看看这个', shots: Array.from({ length: 8 }, (_, index) => `镜头 ${index + 1}`), metrics: ['完播率', '点击率', '转化率'] }, imagePrompt: 'realistic UGC reference image', videoPrompt: 'realistic 9:16 UGC product video' }
 const sendJson = (res, data, status = 200) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify(data)) }
@@ -127,6 +127,54 @@ test('Grok relay alias overrides a stale /videos route with the standard generat
   assert.deepEqual(submitted.images, ['https://cdn.example.com/ref.png'])
   assert.equal(submitted.input_reference, 'https://cdn.example.com/ref.png')
   assert.equal(submitted.image, 'https://cdn.example.com/ref.png')
+})
+
+test('auto video routing skips invalid media endpoints and submits Veo 3.1 with its safe 8 second profile', async (t) => {
+  const calls = []; let submitted = ''
+  const server = http.createServer((req, res) => {
+    calls.push(`${req.method} ${req.url}`)
+    if (req.method === 'GET' && req.url === '/ref.png') { res.writeHead(200, { 'content-type': 'image/png' }); res.end('image-bytes'); return }
+    if (req.method === 'POST' && req.url === '/videos') {
+      req.setEncoding('utf8'); req.on('data', (chunk) => { submitted += chunk }); req.on('end', () => sendJson(res, { id: 'veo-task' })); return
+    }
+    if (req.method === 'GET' && req.url === '/videos/veo-task') return sendJson(res, { status: 'completed', video: { url: 'https://cdn.example.com/veo.mp4' } })
+    return sendJson(res, { error: { message: 'wrong endpoint' } }, 404)
+  }).listen(0, '127.0.0.1')
+  await new Promise((resolve) => server.once('listening', resolve)); t.after(() => server.close())
+  const baseUrl = `http://127.0.0.1:${server.address().port}`
+  const config = { provider: 'compatible', demoMode: false, testAgentPlan, baseUrl, apiKey: 'test', authMode: 'bearer', imageSource: 'reference', videoProtocol: 'auto', videoModels: 'veo3.1-quality,kling-v3-omni', videoProfile: 'custom', videoDuration: '15', videoResolution: '720p', videoAspectRatio: '9:16', videoPath: '/media/generate\n/v1/media/generate\n/videos\n/videos/generations\n/v1/videos\n/v1/videos/generations', videoStatusPath: '/videos/{id}', pollInitialDelayMs: 1, pollIntervalMs: 1 }
+  const created = createWorkflowJob({ brief: { name: '商品', sellingPoints: '卖点', assets: [{ url: `${baseUrl}/ref.png` }] }, config })
+  const job = await waitForJob(created.id)
+  assert.equal(job.status, 'completed', job.error)
+  assert.equal(job.result.videoUrl, 'https://cdn.example.com/veo.mp4')
+  assert.match(submitted, /name="seconds"\r\n\r\n8/)
+  assert.match(submitted, /name="input_reference"; filename="product-1\.jpg"/)
+  assert.ok(!calls.some((call) => call.includes('/media/generate')))
+  assert.ok(!calls.some((call) => call.startsWith('POST /videos/generations')))
+})
+
+test('auto endpoint selection excludes media routes when standard video routes are configured', () => {
+  const endpoints = videoEndpointsFor({ videoProtocol: 'auto', videoPath: '/media/generate\n/v1/media/generate\n/videos\n/videos/generations' })
+  assert.ok(!endpoints.includes('/media/generate'))
+  assert.ok(endpoints.includes('/videos'))
+  assert.ok(endpoints.includes('/videos/generations'))
+})
+
+test('Grok relay without a reference stops before video submission with an actionable error', async (t) => {
+  const videoPosts = []
+  const server = http.createServer((req, res) => {
+    if (req.method === 'GET' && req.url?.startsWith('/v1/skills/models/grok-video-1.5-preview')) return sendJson(res, { type: 'video', params: [] })
+    if (req.method === 'GET') return sendJson(res, { data: [{ id: 'grok-video-1.5-preview' }] })
+    if (req.method === 'POST' && req.url === '/images/generations') return sendJson(res, { data: [{ url: 'https://cdn.example.com/generated-reference.png' }] })
+    videoPosts.push(req.url); return sendJson(res, { error: { message: 'should not submit' } }, 500)
+  }).listen(0, '127.0.0.1')
+  await new Promise((resolve) => server.once('listening', resolve)); t.after(() => server.close())
+  const config = { provider: 'compatible', demoMode: false, testAgentPlan, baseUrl: `http://127.0.0.1:${server.address().port}`, apiKey: 'test', authMode: 'bearer', imageSource: 'api', imageProtocol: 'openai', imageModels: 'gpt-image-1', imagePath: '/images/generations', videoProtocol: 'auto', videoModels: 'grok-video-1.5-preview', videoProfile: 'grok-video-1.5-preview', videoReferencePolicy: 'text-only', videoPath: '/media/generate\n/v1/media/generate\n/videos/generations' }
+  const created = createWorkflowJob({ brief: { name: '商品', sellingPoints: '卖点', assets: [] }, config })
+  const job = await waitForJob(created.id)
+  assert.equal(job.status, 'failed')
+  assert.match(job.error, /仅支持图生视频.*参考图/)
+  assert.deepEqual(videoPosts, [])
 })
 
 test('Grok Video 3 follows the documented images array and metadata resolution schema', async (t) => {

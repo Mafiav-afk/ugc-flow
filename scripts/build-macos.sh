@@ -3,7 +3,6 @@ set -euo pipefail
 export COPYFILE_DISABLE=1
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-VERSION="1.3.0"
 ARCH="arm64"
 BUILD="/private/tmp/ugc-flow-mac-build-$UID"
 APP="$BUILD/UGC Flow 安装器.app"
@@ -13,6 +12,7 @@ RELEASE="$ROOT/release"
 NODE_RUNTIME="${NODE_RUNTIME:-/Users/liziming/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node}"
 
 if [[ ! -x "$NODE_RUNTIME" ]]; then NODE_RUNTIME="$(command -v node)"; fi
+VERSION="$(cd "$ROOT" && "$NODE_RUNTIME" -p "require('./package.json').version")"
 cd "$ROOT"
 npm run catalog
 if [[ "${UGC_FLOW_SKIP_FRONTEND_BUILD:-0}" == "1" && -f "$ROOT/dist/index.html" ]]; then
@@ -45,12 +45,17 @@ if [[ "${UGC_FLOW_REUSE_INSTALLED_DEPS:-0}" == "1" && -d "$INSTALLED_DEPS" ]]; t
   echo "Using verified installed production dependencies"
   /usr/bin/ditto "$INSTALLED_DEPS" "$PAYLOAD/app/node_modules"
 else
-  /usr/bin/ditto "$ROOT/node_modules" "$PAYLOAD/app/node_modules"
+  echo "Collecting production dependencies only"
+  /bin/mkdir -p "$PAYLOAD/app/node_modules"
+  while IFS= read -r dependency; do
+    [[ "$dependency" == "$ROOT" ]] && continue
+    relative="${dependency#$ROOT/node_modules/}"
+    [[ "$relative" == "$dependency" ]] && continue
+    /bin/mkdir -p "$PAYLOAD/app/node_modules/${relative:h}"
+    /usr/bin/ditto "$dependency" "$PAYLOAD/app/node_modules/$relative"
+  done < <(npm ls --omit=dev --all --parseable)
+  [[ -f "$PAYLOAD/app/node_modules/express/package.json" ]]
 fi
-(
-  cd "$PAYLOAD/app"
-  npm prune --omit=dev --ignore-scripts >/dev/null
-)
 /bin/cp "$NODE_RUNTIME" "$PAYLOAD/node"
 /bin/chmod 755 "$PAYLOAD/node"
 /usr/bin/find "$APP" -name '._*' -delete
@@ -69,7 +74,7 @@ DMG_DIR="$BUILD/dmg"
 /bin/ln -s /Applications "$DMG_DIR/Applications"
 /usr/bin/xattr -cr "$DMG_DIR" 2>/dev/null || true
 /usr/bin/hdiutil create -volname "UGC Flow" -srcfolder "$DMG_DIR" -ov -format UDZO "$DMG"
-DELIVERY_DIR="$BUILD/UGC Flow Mac 1.3.0 完整资料包"
+DELIVERY_DIR="$BUILD/UGC Flow Mac $VERSION 完整资料包"
 /bin/mkdir -p "$DELIVERY_DIR"
 /bin/cp "$DMG" "$DELIVERY_DIR/UGC-Flow-Mac-$VERSION-$ARCH.dmg"
 /bin/cp -R "$DOCS_STAGE" "$DELIVERY_DIR/使用说明与API文档"
